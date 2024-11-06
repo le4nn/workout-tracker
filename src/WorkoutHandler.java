@@ -1,5 +1,6 @@
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -21,18 +22,17 @@ public class WorkoutHandler implements HttpHandler {
 
         try {
             if ("POST".equals(method) && "/workouts/manage".equals(path)) {
-                // Общий обработчик для добавления, удаления и обновления тренировки
                 String query = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 System.out.println("Request body: " + query);
                 String[] params = query.split("&");
-                String action = params[0].split("=")[1];  // Получаем действие (add, update, delete)
-                String name = params[1].split("=")[1];   // Название тренировки
+                String action = params[0].split("=")[1];
+                String name = params[1].split("=")[1];
                 String responseMessage = "";
 
                 if ("add".equals(action)) {
                     int duration = Integer.parseInt(params[2].split("=")[1]);
                     String intensity = params[3].split("=")[1];
-                    Command addWorkoutCommand = new AddWorkoutCommand(controller, name, duration, intensity);
+                    Command addWorkoutCommand = new Command.AddWorkoutCommand(controller, name, duration, intensity);
                     addWorkoutCommand.execute();
                     responseMessage = "Тренировка добавлена!";
                 } else if ("delete".equals(action)) {
@@ -40,7 +40,7 @@ public class WorkoutHandler implements HttpHandler {
                     if (workoutId == -1) {
                         responseMessage = "Тренировка не найдена!";
                     } else {
-                        Command deleteWorkoutCommand = new DeleteWorkoutCommand(controller, workoutId);
+                        Command deleteWorkoutCommand = new Command.DeleteWorkoutCommand(controller, workoutId);
                         deleteWorkoutCommand.execute();
                         responseMessage = "Тренировка удалена!";
                     }
@@ -51,7 +51,7 @@ public class WorkoutHandler implements HttpHandler {
                     } else {
                         int duration = Integer.parseInt(params[2].split("=")[1]);
                         String intensity = params[3].split("=")[1];
-                        Command updateWorkoutCommand = new UpdateWorkoutCommand(controller, workoutId, name, duration, intensity);
+                        Command updateWorkoutCommand = new Command.UpdateWorkoutCommand(controller, workoutId, name, duration, intensity);
                         updateWorkoutCommand.execute();
                         responseMessage = "Тренировка обновлена!";
                     }
@@ -60,7 +60,6 @@ public class WorkoutHandler implements HttpHandler {
                 response = "<p>" + responseMessage + "</p><a href=\"/workouts\">Вернуться</a>";
 
             } else {
-                // GET-запрос для отображения списка тренировок
                 StringBuilder html = new StringBuilder();
                 html.append("<html><head><title>Список тренировок</title>")
                         .append("<style>")
@@ -82,7 +81,6 @@ public class WorkoutHandler implements HttpHandler {
                 }
                 html.append("</ul>");
 
-                // Форма для выбора действия
                 html.append("<h2>Управление тренировкой</h2>")
                         .append("<form method=\"POST\" action=\"/workouts/manage\">")
                         .append("Действие: ")
@@ -93,7 +91,6 @@ public class WorkoutHandler implements HttpHandler {
                         .append("</select><br>")
                         .append("Название: <input type=\"text\" name=\"name\"><br>");
 
-                // Поля для добавления и обновления
                 html.append("Длительность: <input type=\"number\" name=\"duration\"><br>")
                         .append("Интенсивность: <input type=\"text\" name=\"intensity\"><br>");
 
@@ -126,7 +123,7 @@ public class WorkoutHandler implements HttpHandler {
                 return workout.getId();
             }
         }
-        return -1;  // Если не нашли, возвращаем -1
+        return -1;
     }
 }
 
