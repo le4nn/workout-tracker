@@ -8,10 +8,16 @@ public interface Observer {
     }
 
     class StatsModule implements Observer {
+        private ProgressTracker progressTracker;
+
+        public StatsModule(ProgressTracker progressTracker) {
+            this.progressTracker = progressTracker;
+        }
 
         @Override
         public void update(String message) {
             System.out.println("Обновление: " + message);
+            System.out.println(progressTracker.getProgressSummary());
         }
     }
 }
