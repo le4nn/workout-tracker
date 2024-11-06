@@ -7,8 +7,10 @@ public class Main {
     public static void main(String[] args) throws IOException {
         WorkoutController controller = new WorkoutController(new ArrayList<>());
 
-        HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
+        Observer.StatsModule statsModule = new Observer.StatsModule();
+        controller.registerObserver(statsModule);
 
+        HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
         server.createContext("/workouts", new WorkoutHandler(controller));
 
         server.setExecutor(null);
@@ -17,3 +19,4 @@ public class Main {
         System.out.println("Сервер запущен на http://localhost:8081/workouts");
     }
 }
+
