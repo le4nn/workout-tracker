@@ -8,7 +8,7 @@ public interface Observer {
     }
 
     class StatsModule implements Observer {
-        private ProgressTracker progressTracker;
+        private final ProgressTracker progressTracker;
 
         public StatsModule(ProgressTracker progressTracker) {
             this.progressTracker = progressTracker;
