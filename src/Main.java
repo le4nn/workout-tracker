@@ -13,16 +13,13 @@ public class Main {
         Observer.StatsModule statsModule = new Observer.StatsModule(progressTracker);
         controller.registerObserver(statsModule);
 
+        WorkoutFacade workoutFacade = new WorkoutFacade(controller, dataAdapter);
+
         HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
-
-        server.createContext("/workouts", new WorkoutHandler(controller, dataAdapter));
-
+        server.createContext("/workouts", new WorkoutHandler(workoutFacade));
         server.setExecutor(null);
-
         server.start();
 
         System.out.println("Сервер запущен на http://localhost:8081/workouts");
     }
 }
-
-

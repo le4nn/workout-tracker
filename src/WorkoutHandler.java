@@ -6,14 +6,10 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 public class WorkoutHandler implements HttpHandler {
-    private final WorkoutController controller;
-    private final DataAdapter dataAdapter;
-    private final ProgressTracker progressTracker;  // Added ProgressTracker field
+    private final WorkoutFacade workoutFacade;
 
-    public WorkoutHandler(WorkoutController controller, DataAdapter dataAdapter) {
-        this.controller = controller;
-        this.dataAdapter = dataAdapter;
-        this.progressTracker = new ProgressTracker();  // Initialize ProgressTracker
+    public WorkoutHandler(WorkoutFacade workoutFacade) {
+        this.workoutFacade = workoutFacade;
     }
 
     @Override
@@ -36,41 +32,25 @@ public class WorkoutHandler implements HttpHandler {
                 if ("add".equals(action)) {
                     int duration = Integer.parseInt(params[2].split("=")[1]);
                     String intensity = params[3].split("=")[1];
-                    Command addWorkoutCommand = new Command.AddWorkoutCommand(controller, name, duration, intensity);
-                    addWorkoutCommand.execute();
+                    workoutFacade.addWorkout(name, duration, intensity);
                     responseMessage = "Тренировка добавлена!";
-                    dataAdapter.saveData("Добавлена тренировка: " + name + ", " + duration + " мин, интенсивность: " + intensity);
-                    progressTracker.addWorkoutProgress(duration, calculateCalories(duration, intensity));  // Update progress
                 } else if ("delete".equals(action)) {
-                    int workoutId = findWorkoutIdByName(name);
-                    if (workoutId == -1) {
-                        responseMessage = "Тренировка не найдена!";
-                    } else {
-                        Command deleteWorkoutCommand = new Command.DeleteWorkoutCommand(controller, workoutId);
-                        deleteWorkoutCommand.execute();
-                        responseMessage = "Тренировка удалена!";
-                        dataAdapter.saveData("Удалена тренировка: " + name);
-                    }
+                    workoutFacade.deleteWorkout(name);
+                    responseMessage = "Тренировка удалена!";
                 } else if ("update".equals(action)) {
-                    int workoutId = findWorkoutIdByName(name);
-                    if (workoutId == -1) {
-                        responseMessage = "Тренировка не найдена!";
-                    } else {
-                        int duration = Integer.parseInt(params[2].split("=")[1]);
-                        String intensity = params[3].split("=")[1];
-                        Command updateWorkoutCommand = new Command.UpdateWorkoutCommand(controller, workoutId, name, duration, intensity);
-                        updateWorkoutCommand.execute();
-                        responseMessage = "Тренировка обновлена!";
-                        dataAdapter.saveData("Обновлена тренировка: " + name + ", " + duration + " мин, интенсивность: " + intensity);
-                        progressTracker.addWorkoutProgress(duration, calculateCalories(duration, intensity));  // Update progress
-                    }
+                    int duration = Integer.parseInt(params[2].split("=")[1]);
+                    String intensity = params[3].split("=")[1];
+                    workoutFacade.updateWorkout(name, duration, intensity);
+                    responseMessage = "Тренировка обновлена!";
                 }
 
                 response = "<p>" + responseMessage + "</p><a href=\"/workouts\">Вернуться</a>";
             } else {
-                response = generateWorkoutListHtml() + "<p>" + progressTracker.getProgressSummary() + "</p>";  // Use progressTracker
+                // Добавляем сводку прогресса в HTML
+                response = generateWorkoutListHtml() + "<p>" + workoutFacade.getProgressSummary() + "</p>";
             }
 
+            // Отправка ответа
             exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
             exchange.sendResponseHeaders(200, response.getBytes(StandardCharsets.UTF_8).length);
             try (OutputStream os = exchange.getResponseBody()) {
@@ -85,15 +65,6 @@ public class WorkoutHandler implements HttpHandler {
                 os.write(response.getBytes(StandardCharsets.UTF_8));
             }
         }
-    }
-
-    private int findWorkoutIdByName(String name) {
-        for (WorkoutModel workout : controller.getAllWorkouts()) {
-            if (workout.getName().equals(name)) {
-                return workout.getId();
-            }
-        }
-        return -1;
     }
 
     private String generateWorkoutListHtml() {
@@ -111,7 +82,7 @@ public class WorkoutHandler implements HttpHandler {
                 .append("</style></head><body>")
                 .append("<h1>Список тренировок</h1><ul>");
 
-        for (WorkoutModel workout : controller.getAllWorkouts()) {
+        for (WorkoutModel workout : workoutFacade.getAllWorkouts()) {
             html.append("<li>").append(workout.getName())
                     .append(" - ").append(workout.getDuration()).append(" мин - ")
                     .append(workout.getIntensity()).append("</li>");
@@ -135,11 +106,5 @@ public class WorkoutHandler implements HttpHandler {
                 .append("</form></body></html>");
 
         return html.toString();
-    }
-
-    private int calculateCalories(int duration, String intensity) {
-        int baseCalories = 5;
-        if ("high".equals(intensity)) baseCalories = 10;
-        return duration * baseCalories;
     }
 }
