@@ -7,9 +7,13 @@ import java.nio.charset.StandardCharsets;
 
 public class WorkoutHandler implements HttpHandler {
     private final WorkoutController controller;
+    private final DataAdapter dataAdapter;
+    private final ProgressTracker progressTracker;  // Added ProgressTracker field
 
-    public WorkoutHandler(WorkoutController controller) {
+    public WorkoutHandler(WorkoutController controller, DataAdapter dataAdapter) {
         this.controller = controller;
+        this.dataAdapter = dataAdapter;
+        this.progressTracker = new ProgressTracker();  // Initialize ProgressTracker
     }
 
     @Override
@@ -35,6 +39,8 @@ public class WorkoutHandler implements HttpHandler {
                     Command addWorkoutCommand = new Command.AddWorkoutCommand(controller, name, duration, intensity);
                     addWorkoutCommand.execute();
                     responseMessage = "Тренировка добавлена!";
+                    dataAdapter.saveData("Добавлена тренировка: " + name + ", " + duration + " мин, интенсивность: " + intensity);
+                    progressTracker.addWorkoutProgress(duration, calculateCalories(duration, intensity));  // Update progress
                 } else if ("delete".equals(action)) {
                     int workoutId = findWorkoutIdByName(name);
                     if (workoutId == -1) {
@@ -43,6 +49,7 @@ public class WorkoutHandler implements HttpHandler {
                         Command deleteWorkoutCommand = new Command.DeleteWorkoutCommand(controller, workoutId);
                         deleteWorkoutCommand.execute();
                         responseMessage = "Тренировка удалена!";
+                        dataAdapter.saveData("Удалена тренировка: " + name);
                     }
                 } else if ("update".equals(action)) {
                     int workoutId = findWorkoutIdByName(name);
@@ -54,50 +61,14 @@ public class WorkoutHandler implements HttpHandler {
                         Command updateWorkoutCommand = new Command.UpdateWorkoutCommand(controller, workoutId, name, duration, intensity);
                         updateWorkoutCommand.execute();
                         responseMessage = "Тренировка обновлена!";
+                        dataAdapter.saveData("Обновлена тренировка: " + name + ", " + duration + " мин, интенсивность: " + intensity);
+                        progressTracker.addWorkoutProgress(duration, calculateCalories(duration, intensity));  // Update progress
                     }
                 }
 
                 response = "<p>" + responseMessage + "</p><a href=\"/workouts\">Вернуться</a>";
-
             } else {
-                StringBuilder html = new StringBuilder();
-                html.append("<html><head><title>Список тренировок</title>")
-                        .append("<style>")
-                        .append("body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }")
-                        .append("h1 { color: #333; }")
-                        .append("ul { list-style-type: none; padding: 0; }")
-                        .append("li { background: #fff; margin: 5px 0; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }")
-                        .append("form { margin-top: 20px; }")
-                        .append("input[type='text'], input[type='number'] { padding: 10px; margin: 5px 0; width: calc(100% - 22px); border: 1px solid #ccc; border-radius: 5px; }")
-                        .append("input[type='submit'] { background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }")
-                        .append("input[type='submit']:hover { background-color: #218838; }")
-                        .append("</style></head><body>")
-                        .append("<h1>Список тренировок</h1><ul>");
-
-                for (WorkoutModel workout : controller.getAllWorkouts()) {
-                    html.append("<li>").append(workout.getName())
-                            .append(" - ").append(workout.getDuration()).append(" мин - ")
-                            .append(workout.getIntensity()).append("</li>");
-                }
-                html.append("</ul>");
-
-                html.append("<h2>Управление тренировкой</h2>")
-                        .append("<form method=\"POST\" action=\"/workouts/manage\">")
-                        .append("Действие: ")
-                        .append("<select name=\"action\">")
-                        .append("<option value=\"add\">Добавить</option>")
-                        .append("<option value=\"update\">Обновить</option>")
-                        .append("<option value=\"delete\">Удалить</option>")
-                        .append("</select><br>")
-                        .append("Название: <input type=\"text\" name=\"name\"><br>");
-
-                html.append("Длительность: <input type=\"number\" name=\"duration\"><br>")
-                        .append("Интенсивность: <input type=\"text\" name=\"intensity\"><br>");
-
-                html.append("<input type=\"submit\" value=\"Выполнить\">")
-                        .append("</form></body></html>");
-
-                response = html.toString();
+                response = generateWorkoutListHtml() + "<p>" + progressTracker.getProgressSummary() + "</p>";  // Use progressTracker
             }
 
             exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
@@ -105,7 +76,6 @@ public class WorkoutHandler implements HttpHandler {
             try (OutputStream os = exchange.getResponseBody()) {
                 os.write(response.getBytes(StandardCharsets.UTF_8));
             }
-
         } catch (Exception e) {
             e.printStackTrace();
             response = "<p>Произошла ошибка на сервере. Пожалуйста, попробуйте позже.</p>";
@@ -125,5 +95,51 @@ public class WorkoutHandler implements HttpHandler {
         }
         return -1;
     }
-}
 
+    private String generateWorkoutListHtml() {
+        StringBuilder html = new StringBuilder();
+        html.append("<html><head><title>Список тренировок</title>")
+                .append("<style>")
+                .append("body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }")
+                .append("h1 { color: #333; }")
+                .append("ul { list-style-type: none; padding: 0; }")
+                .append("li { background: #fff; margin: 5px 0; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }")
+                .append("form { margin-top: 20px; }")
+                .append("input[type='text'], input[type='number'] { padding: 10px; margin: 5px 0; width: calc(100% - 22px); border: 1px solid #ccc; border-radius: 5px; }")
+                .append("input[type='submit'] { background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }")
+                .append("input[type='submit']:hover { background-color: #218838; }")
+                .append("</style></head><body>")
+                .append("<h1>Список тренировок</h1><ul>");
+
+        for (WorkoutModel workout : controller.getAllWorkouts()) {
+            html.append("<li>").append(workout.getName())
+                    .append(" - ").append(workout.getDuration()).append(" мин - ")
+                    .append(workout.getIntensity()).append("</li>");
+        }
+        html.append("</ul>");
+
+        html.append("<h2>Управление тренировкой</h2>")
+                .append("<form method=\"POST\" action=\"/workouts/manage\">")
+                .append("Действие: ")
+                .append("<select name=\"action\">")
+                .append("<option value=\"add\">Добавить</option>")
+                .append("<option value=\"update\">Обновить</option>")
+                .append("<option value=\"delete\">Удалить</option>")
+                .append("</select><br>")
+                .append("Название: <input type=\"text\" name=\"name\"><br>");
+
+        html.append("Длительность: <input type=\"number\" name=\"duration\"><br>")
+                .append("Интенсивность: <input type=\"text\" name=\"intensity\"><br>");
+
+        html.append("<input type=\"submit\" value=\"Выполнить\">")
+                .append("</form></body></html>");
+
+        return html.toString();
+    }
+
+    private int calculateCalories(int duration, String intensity) {
+        int baseCalories = 5;
+        if ("high".equals(intensity)) baseCalories = 10;
+        return duration * baseCalories;
+    }
+}

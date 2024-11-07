@@ -8,16 +8,21 @@ public class Main {
         ProgressTracker progressTracker = new ProgressTracker();
         WorkoutController controller = new WorkoutController(new ArrayList<>(), progressTracker);
 
+        DataAdapter dataAdapter = new DataAdapter.FileDataAdapter();
+
         Observer.StatsModule statsModule = new Observer.StatsModule(progressTracker);
         controller.registerObserver(statsModule);
 
         HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
-        server.createContext("/workouts", new WorkoutHandler(controller));
+
+        server.createContext("/workouts", new WorkoutHandler(controller, dataAdapter));
 
         server.setExecutor(null);
+
         server.start();
 
         System.out.println("Сервер запущен на http://localhost:8081/workouts");
     }
 }
+
 
